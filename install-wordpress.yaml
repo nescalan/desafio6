@@ -87,6 +87,12 @@
         mode: "0755"
         recurse: yes
 
+    - name: 5.6 Copiar wp-config-sample.php a wp-config.php
+      command:
+        cmd: cp wp-config-sample.php wp-config.php
+      args:
+        chdir: /var/www/html/wordpress
+
     # - name: 5.6 Copiar wp-config-sample.php a wp-config.php
     #   copy:
     #     src: /var/www/html/wordpress/wp-config-sample.php
