@@ -1,0 +1,7 @@
+---
+- name: Configurar instancia EC2 con PHP y MySQL
+  hosts: wordpress
+  become: true
+  roles:
+    - php
+    - mysql
