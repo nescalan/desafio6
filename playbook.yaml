@@ -1,0 +1,148 @@
+---
+- name: Configurar instancia EC2 para WordPress
+  hosts: wordpress
+  become: true # Permite ejecutar tareas como superusuario
+  vars:
+    db_name: "wordpress_db"
+    db_user: "nelson"
+    db_password: "4u3p7px6"
+
+  tasks:
+    # Paso 1: Actualizar el servidor de Ubuntu
+    - name: Actualizar el servidor
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    # Paso 2: Instalar Apache y PHP
+    - name: Instalar Apache
+      apt:
+        name: apache2
+        state: present
+
+    - name: Habilitar y arrancar Apache
+      systemd:
+        name: apache2
+        enabled: yes
+        state: started
+
+    - name: Instalar PHP y extensiones requeridas
+      apt:
+        name:
+          - php
+          - php-common
+          - php-mysql
+          - php-xml
+          - php-xmlrpc
+          - php-curl
+          - php-gd
+          - php-imagick
+          - php-cli
+          - php-dev
+          - php-imap
+          - php-mbstring
+          - php-opcache
+          - php-soap
+          - php-zip
+          - php-intl
+        state: present
+
+    # Paso 3: Ejecutar el rol de MariaDB
+    - name: Configurar MariaDB
+      include_role:
+        name: mysql
+
+    # Paso 4: Configurar la base de datos para WordPress
+    - name: Crear base de datos y usuario para WordPress
+      mysql_user:
+        name: "{{ db_user }}"
+        host: localhost
+        password: "{{ db_password }}"
+        priv: "{{ db_name }}.*:ALL"
+        state: present
+
+      mysql_db:
+        name: "{{ db_name }}"
+        state: present
+
+    # Paso 5: Descargar y configurar WordPress
+    - name: Descargar WordPress
+      get_url:
+        url: https://wordpress.org/latest.tar.gz
+        dest: /tmp/latest.tar.gz
+
+    - name: Extraer WordPress
+      unarchive:
+        src: /tmp/latest.tar.gz
+        dest: /var/www/html/
+        remote_src: true
+
+    - name: Configurar permisos para WordPress
+      file:
+        path: /var/www/html/wordpress
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: Copiar wp-config-sample.php a wp-config.php
+      copy:
+        src: /var/www/html/wordpress/wp-config-sample.php
+        dest: /var/www/html/wordpress/wp-config.php
+        owner: www-data
+        group: www-data
+
+    - name: Configurar credenciales en wp-config.php
+      lineinfile:
+        path: /var/www/html/wordpress/wp-config.php
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop:
+        - {
+            regexp: "^define\\( 'DB_NAME'.*",
+            line: "define( 'DB_NAME', '{{ db_name }}' );",
+          }
+        - {
+            regexp: "^define\\( 'DB_USER'.*",
+            line: "define( 'DB_USER', '{{ db_user }}' );",
+          }
+        - {
+            regexp: "^define\\( 'DB_PASSWORD'.*",
+            line: "define( 'DB_PASSWORD', '{{ db_password }}' );",
+          }
+        - {
+            regexp: "^define\\( 'DB_HOST'.*",
+            line: "define( 'DB_HOST', 'localhost' );",
+          }
+
+    - name: Agregar claves secretas a wp-config.php
+      shell: curl -s https://api.wordpress.org/secret-key/1.1/salt/
+      register: salt_keys
+
+    - name: Inyectar claves secretas en wp-config.php
+      lineinfile:
+        path: /var/www/html/wordpress/wp-config.php
+        insertafter: "^define\\('AUTH_KEY'"
+        line: "{{ item }}"
+      loop: "{{ salt_keys.stdout_lines }}"
+
+    # Paso 6: Configurar Apache para WordPress
+    - name: Configurar Apache para WordPress
+      blockinfile:
+        path: /etc/apache2/sites-available/wordpress.conf
+        block: |
+          <VirtualHost *:80>
+              DocumentRoot /var/www/html/wordpress
+          </VirtualHost>
+
+    - name: Habilitar configuración de WordPress en Apache
+      command: a2ensite wordpress.conf
+
+    - name: Deshabilitar configuración predeterminada de Apache
+      command: a2dissite 000-default.conf
+
+    - name: Recargar Apache
+      service:
+        name: apache2
+        state: reloaded
