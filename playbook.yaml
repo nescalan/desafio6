@@ -14,7 +14,7 @@
         update_cache: yes
         upgrade: dist
 
-    # Paso 2: Instalar Apache y PHP
+    # Paso 2: Instalar Apache y configurar PHP usando el rol
     - name: Instalar Apache
       apt:
         name: apache2
@@ -26,26 +26,9 @@
         enabled: yes
         state: started
 
-    - name: Instalar PHP y extensiones requeridas
-      apt:
-        name:
-          - php
-          - php-common
-          - php-mysql
-          - php-xml
-          - php-xmlrpc
-          - php-curl
-          - php-gd
-          - php-imagick
-          - php-cli
-          - php-dev
-          - php-imap
-          - php-mbstring
-          - php-opcache
-          - php-soap
-          - php-zip
-          - php-intl
-        state: present
+    - name: Configurar PHP utilizando el rol
+      include_role:
+        name: php
 
     # Paso 3: Ejecutar el rol de MariaDB
     - name: Configurar MariaDB
