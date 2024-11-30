@@ -2,6 +2,7 @@
 - name: Configurar instancia EC2 para WordPress
   hosts: wordpress
   become: true # Permite ejecutar tareas como superusuario
+
   vars:
     db_name: "wordpress_db"
     db_user: "ansible"
@@ -31,7 +32,7 @@
         name: php
 
     # Paso 3: Ejecutar el rol de MariaDB
-    - name: Configurar MariaDB
+    - name: 3.1 Configurar MariaDB
       include_role:
         name: mysql
 
@@ -48,6 +49,7 @@
         password: "{{ db_password }}"
         priv: "{{ db_name }}.*:ALL"
         state: present
+        column_case_sensitive: false
 
     - name: 4.3 Refrescar privilegios de MySQL
       mysql_user:
@@ -62,28 +64,37 @@
         url: https://wordpress.org/latest.tar.gz
         dest: /tmp/latest.tar.gz
 
-    - name: 5.2 Extraer WordPress
+    - name: 5.2 Descomprimir el archivo de WordPress
       unarchive:
         src: /tmp/latest.tar.gz
-        dest: /var/www/html/
+        dest: /tmp/
         remote_src: true
 
-    - name: 5.3 Configurar permisos para WordPress
+    - name: 5.3 Copiar WordPress al directorio /var/www/html
+      command: cp -R /tmp/wordpress /var/www/html/
+
+    - name: 5.4 Cambiar la propiedad del directorio /var/www/html/wordpress
       file:
         path: /var/www/html/wordpress
+        owner: www-data
+        group: www-data
         state: directory
-        owner: www-data
-        group: www-data
+        recurse: yes
+
+    - name: 5.5 Modificar permisos del directorio /var/www/html/wordpress
+      file:
+        path: /var/www/html/wordpress
         mode: "0755"
+        recurse: yes
 
-    - name: 5.4 Copiar wp-config-sample.php a wp-config.php
-      copy:
-        src: /var/www/html/wordpress/wp-config-sample.php
-        dest: /var/www/html/wordpress/wp-config.php
-        owner: www-data
-        group: www-data
+    # - name: 5.6 Copiar wp-config-sample.php a wp-config.php
+    #   copy:
+    #     src: /var/www/html/wordpress/wp-config-sample.php
+    #     dest: /var/www/html/wordpress/wp-config.php
+    #     owner: www-data
+    #     group: www-data
 
-    - name: 5.5 Configurar credenciales en wp-config.php
+    - name: 5.7 Configurar credenciales en wp-config.php
       lineinfile:
         path: /var/www/html/wordpress/wp-config.php
         regexp: "{{ item.regexp }}"
@@ -107,11 +118,11 @@
             line: "define( 'DB_HOST', 'localhost' );",
           }
 
-    - name: 5.6 Agregar claves secretas a wp-config.php
+    - name: 5.8 Agregar claves secretas de WordPress a wp-config.php
       shell: curl -s https://api.wordpress.org/secret-key/1.1/salt/
       register: salt_keys
 
-    - name: 5.7 Inyectar claves secretas en wp-config.php
+    - name: 5.9 Inyectar claves secretas en wp-config.php
       lineinfile:
         path: /var/www/html/wordpress/wp-config.php
         insertafter: "^define\\('AUTH_KEY'"

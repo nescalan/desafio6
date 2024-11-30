@@ -1,6 +1,6 @@
 ---
 # 1. Instalar MariaDB
-- name: Instalar MariaDB Server y Cliente
+- name: Role 1 Instalar MariaDB Server y Cliente
   apt:
     name:
       - mariadb-server
@@ -9,18 +9,18 @@
     update_cache: yes
 
 # 2. Habilitar e iniciar MariaDB
-- name: Habilitar y empezar MariaDB
+- name: Role 2 Habilitar y empezar MariaDB
   systemd:
     name: mariadb
     enabled: yes
     state: started
 
 # 3. Verificar que MariaDB esté activa
-- name: Verificar que MariaDB está activa
+- name: Rol 3.1 Verificar que MariaDB está activa
   command: systemctl is-active mariadb
   register: mariadb_status
   changed_when: false
 
-- name: Mostrar el estado del servicio MariaDB
+- name: Role 3.2 Mostrar el estado del servicio MariaDB
   debug:
     msg: "El servicio MariaDB está activo: {{ mariadb_status.stdout }}"

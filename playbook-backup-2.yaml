@@ -1,0 +1,140 @@
+---
+- name: Configurar instancia EC2 para WordPress
+  hosts: wordpress
+  become: true # Permite ejecutar tareas como superusuario
+  vars:
+    db_name: "wordpress_db"
+    db_user: "ansible"
+    db_password: "4u3p7px6"
+
+  tasks:
+    # Paso 1: Actualizar el servidor de Ubuntu
+    - name: 1 Actualizar el servidor
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    # Paso 2: Instalar Apache y configurar PHP usando el rol
+    - name: 2.1 Instalar Apache
+      apt:
+        name: apache2
+        state: present
+
+    - name: 2.2 Habilitar y arrancar Apache
+      systemd:
+        name: apache2
+        enabled: yes
+        state: started
+
+    - name: 2.3 Configurar PHP utilizando el rol
+      include_role:
+        name: php
+
+    # Paso 3: Ejecutar el rol de MariaDB
+    - name: Configurar MariaDB
+      include_role:
+        name: mysql
+
+    # Paso 4: Configurar la base de datos para WordPress
+    - name: 4.1 Crear base de datos para WordPress
+      mysql_db:
+        name: "{{ db_name }}"
+        state: present
+
+    - name: 4.2 Crear usuario para WordPress
+      mysql_user:
+        name: "{{ db_user }}"
+        host: localhost
+        password: "{{ db_password }}"
+        priv: "{{ db_name }}.*:ALL"
+        state: present
+        column_case_sensitive: false
+
+    - name: 4.3 Refrescar privilegios de MySQL
+      mysql_user:
+        name: "{{ db_user }}"
+        host: localhost
+        append_privs: yes
+        priv: "{{ db_name }}.*:ALL"
+
+    # Paso 5: Descargar y configurar WordPress
+    - name: 5.1 Descargar WordPress
+      get_url:
+        url: https://wordpress.org/latest.tar.gz
+        dest: /tmp/latest.tar.gz
+
+    - name: 5.2 Extraer WordPress
+      unarchive:
+        src: /tmp/latest.tar.gz
+        dest: /var/www/html/
+        remote_src: true
+
+    - name: 5.3 Configurar permisos para WordPress
+      file:
+        path: /var/www/html/wordpress
+        state: directory
+        owner: www-data
+        group: www-data
+        mode: "0755"
+
+    - name: 5.4 Copiar wp-config-sample.php a wp-config.php
+      copy:
+        src: /var/www/html/wordpress/wp-config-sample.php
+        dest: /var/www/html/wordpress/wp-config.php
+        owner: www-data
+        group: www-data
+
+    - name: 5.5 Configurar credenciales en wp-config.php
+      lineinfile:
+        path: /var/www/html/wordpress/wp-config.php
+        regexp: "{{ item.regexp }}"
+        line: "{{ item.line }}"
+        state: present
+      loop:
+        - {
+            regexp: "^define\\( 'DB_NAME'.*",
+            line: "define( 'DB_NAME', '{{ db_name }}' );",
+          }
+        - {
+            regexp: "^define\\( 'DB_USER'.*",
+            line: "define( 'DB_USER', '{{ db_user }}' );",
+          }
+        - {
+            regexp: "^define\\( 'DB_PASSWORD'.*",
+            line: "define( 'DB_PASSWORD', '{{ db_password }}' );",
+          }
+        - {
+            regexp: "^define\\( 'DB_HOST'.*",
+            line: "define( 'DB_HOST', 'localhost' );",
+          }
+
+    - name: 5.6 Agregar claves secretas a wp-config.php
+      shell: curl -s https://api.wordpress.org/secret-key/1.1/salt/
+      register: salt_keys
+
+    - name: 5.7 Inyectar claves secretas en wp-config.php
+      lineinfile:
+        path: /var/www/html/wordpress/wp-config.php
+        insertafter: "^define\\('AUTH_KEY'"
+        line: "{{ item }}"
+      loop: "{{ salt_keys.stdout_lines }}"
+
+    # Paso 6: Configurar Apache para WordPress
+    - name: 6.1 Configurar Apache para WordPress
+      blockinfile:
+        path: /etc/apache2/sites-available/wordpress.conf
+        block: |
+          <VirtualHost *:80>
+              DocumentRoot /var/www/html/wordpress
+          </VirtualHost>
+
+    - name: 6.2 Habilitar configuración de WordPress en Apache
+      command: a2ensite wordpress.conf
+
+    - name: 6.3 Deshabilitar configuración predeterminada de Apache
+      command: a2dissite 000-default.conf
+
+    - name: 6.4 Recargar Apache
+      service:
+        name: apache2
+        state: reloaded
