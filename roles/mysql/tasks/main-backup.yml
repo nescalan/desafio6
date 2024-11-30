@@ -24,3 +24,25 @@
 - name: Mostrar el estado del servicio MariaDB
   debug:
     msg: "El servicio MariaDB está activo: {{ mariadb_status.stdout }}"
+
+# 4. Configurar la base de datos para WordPress
+- name: Configurar base de datos y usuario para WordPress
+  mysql_db:
+    name: wordpress_db
+    state: present
+
+- name: Crear usuario de la base de datos
+  mysql_user:
+    name: nelson
+    host: localhost
+    password: "nxbwcp7h"
+    priv: "wordpress_db.*:ALL"
+    state: present
+
+- name: Refrescar privilegios
+  mysql_user:
+    name: nelson
+    host: localhost
+    state: absent
+    priv: "wordpress_db.*:ALL"
+    append_privs: yes
