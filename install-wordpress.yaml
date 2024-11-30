@@ -136,13 +136,13 @@
       loop: "{{ salt_keys.stdout_lines }}"
 
     # Paso 6: Configurar Apache para WordPress
-    - name: 6.1 Configurar Apache para WordPress
-      blockinfile:
-        path: /etc/apache2/sites-available/wordpress.conf
-        block: |
-          <VirtualHost *:80>
-              DocumentRoot /var/www/html/wordpress
-          </VirtualHost>
+    - name: 6.1 Crear archivo de configuración de Apache para WordPress
+      template:
+        src: wordpress.conf.j2
+        dest: /etc/apache2/sites-available/wordpress.conf
+        owner: root
+        group: root
+        mode: "0644"
 
     - name: 6.2 Habilitar configuración de WordPress en Apache
       command: a2ensite wordpress.conf
