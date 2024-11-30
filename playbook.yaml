@@ -4,29 +4,29 @@
   become: true # Permite ejecutar tareas como superusuario
   vars:
     db_name: "wordpress_db"
-    db_user: "nelson"
+    db_user: "ansible"
     db_password: "4u3p7px6"
 
   tasks:
     # Paso 1: Actualizar el servidor de Ubuntu
-    - name: Actualizar el servidor
+    - name: 1 Actualizar el servidor
       apt:
         update_cache: yes
         upgrade: dist
 
     # Paso 2: Instalar Apache y configurar PHP usando el rol
-    - name: Instalar Apache
+    - name: 2.1 Instalar Apache
       apt:
         name: apache2
         state: present
 
-    - name: Habilitar y arrancar Apache
+    - name: 2.2 Habilitar y arrancar Apache
       systemd:
         name: apache2
         enabled: yes
         state: started
 
-    - name: Configurar PHP utilizando el rol
+    - name: 2.3 Configurar PHP utilizando el rol
       include_role:
         name: php
 
@@ -36,12 +36,12 @@
         name: mysql
 
     # Paso 4: Configurar la base de datos para WordPress
-    - name: Crear base de datos para WordPress
+    - name: 4.1 Crear base de datos para WordPress
       mysql_db:
         name: "{{ db_name }}"
         state: present
 
-    - name: Crear usuario para WordPress
+    - name: 4.2 Crear usuario para WordPress
       mysql_user:
         name: "{{ db_user }}"
         host: localhost
@@ -49,7 +49,7 @@
         priv: "{{ db_name }}.*:ALL"
         state: present
 
-    - name: Refrescar privilegios de MySQL
+    - name: 4.3 Refrescar privilegios de MySQL
       mysql_user:
         name: "{{ db_user }}"
         host: localhost
@@ -57,18 +57,18 @@
         priv: "{{ db_name }}.*:ALL"
 
     # Paso 5: Descargar y configurar WordPress
-    - name: Descargar WordPress
+    - name: 5.1 Descargar WordPress
       get_url:
         url: https://wordpress.org/latest.tar.gz
         dest: /tmp/latest.tar.gz
 
-    - name: Extraer WordPress
+    - name: 5.2 Extraer WordPress
       unarchive:
         src: /tmp/latest.tar.gz
         dest: /var/www/html/
         remote_src: true
 
-    - name: Configurar permisos para WordPress
+    - name: 5.3 Configurar permisos para WordPress
       file:
         path: /var/www/html/wordpress
         state: directory
@@ -76,14 +76,14 @@
         group: www-data
         mode: "0755"
 
-    - name: Copiar wp-config-sample.php a wp-config.php
+    - name: 5.4 Copiar wp-config-sample.php a wp-config.php
       copy:
         src: /var/www/html/wordpress/wp-config-sample.php
         dest: /var/www/html/wordpress/wp-config.php
         owner: www-data
         group: www-data
 
-    - name: Configurar credenciales en wp-config.php
+    - name: 5.5 Configurar credenciales en wp-config.php
       lineinfile:
         path: /var/www/html/wordpress/wp-config.php
         regexp: "{{ item.regexp }}"
@@ -107,11 +107,11 @@
             line: "define( 'DB_HOST', 'localhost' );",
           }
 
-    - name: Agregar claves secretas a wp-config.php
+    - name: 5.6 Agregar claves secretas a wp-config.php
       shell: curl -s https://api.wordpress.org/secret-key/1.1/salt/
       register: salt_keys
 
-    - name: Inyectar claves secretas en wp-config.php
+    - name: 5.7 Inyectar claves secretas en wp-config.php
       lineinfile:
         path: /var/www/html/wordpress/wp-config.php
         insertafter: "^define\\('AUTH_KEY'"
@@ -119,7 +119,7 @@
       loop: "{{ salt_keys.stdout_lines }}"
 
     # Paso 6: Configurar Apache para WordPress
-    - name: Configurar Apache para WordPress
+    - name: 6.1 Configurar Apache para WordPress
       blockinfile:
         path: /etc/apache2/sites-available/wordpress.conf
         block: |
@@ -127,13 +127,13 @@
               DocumentRoot /var/www/html/wordpress
           </VirtualHost>
 
-    - name: Habilitar configuración de WordPress en Apache
+    - name: 6.2 Habilitar configuración de WordPress en Apache
       command: a2ensite wordpress.conf
 
-    - name: Deshabilitar configuración predeterminada de Apache
+    - name: 6.3 Deshabilitar configuración predeterminada de Apache
       command: a2dissite 000-default.conf
 
-    - name: Recargar Apache
+    - name: 6.4 Recargar Apache
       service:
         name: apache2
         state: reloaded
