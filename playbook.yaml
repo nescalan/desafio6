@@ -1,7 +1,33 @@
 ---
 - name: Configurar instancia EC2 con PHP y MySQL
   hosts: wordpress
-  become: true
-  roles:
-    - php
-    - mysql
+  become: true # Eleva privilegios a superusuario
+  tasks:
+    # 1. Actualizar el sistema
+    - name: Actualizar el servidor
+      apt:
+        update_cache: yes
+        upgrade: dist
+
+    # 2. Instalar Apache
+    - name: Instalar Apache
+      apt:
+        name: apache2
+        state: present
+
+    # 3. Habilitar el servicio Apache para que inicie automáticamente
+    - name: Habilitar Apache en el arranque
+      systemd:
+        name: apache2
+        state: started
+        enabled: yes
+
+    # 4. Verificar el estado del servicio Apache
+    - name: Verificar que Apache esté activo
+      command: systemctl is-active apache2
+      register: apache_status
+      changed_when: false
+
+    - name: Mostrar el estado del servicio Apache
+      debug:
+        msg: "El servicio Apache está activo: {{ apache_status.stdout }}"
