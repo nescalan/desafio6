@@ -36,7 +36,12 @@
         name: mysql
 
     # Paso 4: Configurar la base de datos para WordPress
-    - name: Crear base de datos y usuario para WordPress
+    - name: Crear base de datos para WordPress
+      mysql_db:
+        name: "{{ db_name }}"
+        state: present
+
+    - name: Crear usuario para WordPress
       mysql_user:
         name: "{{ db_user }}"
         host: localhost
@@ -44,9 +49,12 @@
         priv: "{{ db_name }}.*:ALL"
         state: present
 
-      mysql_db:
-        name: "{{ db_name }}"
-        state: present
+    - name: Refrescar privilegios de MySQL
+      mysql_user:
+        name: "{{ db_user }}"
+        host: localhost
+        append_privs: yes
+        priv: "{{ db_name }}.*:ALL"
 
     # Paso 5: Descargar y configurar WordPress
     - name: Descargar WordPress
